@@ -1,0 +1,28 @@
+name: MSBuild
+on: [workflow_dispatch, push, pull_request]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        BUILD_CONFIGURATION: [Release] # Debug
+        BUILD_PLATFORM: [Win32, x64, ARM64]
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Add msbuild to PATH
+      uses: microsoft/setup-msbuild@v2
+      with: 
+        msbuild-architecture: x64
+    - name: Build
+      run: msbuild -maxCpuCount -property:Configuration=${{matrix.BUILD_CONFIGURATION}},Platform=${{matrix.BUILD_PLATFORM}} .
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{github.event.repository.name}}_${{matrix.BUILD_PLATFORM}} # _${{matrix.BUILD_CONFIGURATION}}
+        compression-level: 9
+        path: ${{matrix.BUILD_CONFIGURATION}}\${{matrix.BUILD_PLATFORM}}

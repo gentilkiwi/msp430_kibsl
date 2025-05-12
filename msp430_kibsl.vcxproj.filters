@@ -1,0 +1,14 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="msp430_kibsl.c" />
+    <ClCompile Include="utils.c" />
+    <ClCompile Include="elf.c" />
+    <ClCompile Include="bsl.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="utils.h" />
+    <ClInclude Include="bsl.h" />
+    <ClInclude Include="elf.h" />
+  </ItemGroup>
+</Project>
