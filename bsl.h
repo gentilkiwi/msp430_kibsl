@@ -5,6 +5,7 @@
 */
 #pragma once
 #include <windows.h>
+#include "com/generic.h"
 
 //#define BSL_VERBOSE_OUTPUT
 
@@ -18,17 +19,15 @@ typedef enum _BSL_BAUDRATE {
 
 WORD BSL_CalcCRC16(const BYTE* pcbData, DWORD cbData);
 
-HANDLE BSL_InitComPort(LPCWSTR PortName);
+void BSL_Invocation(GENERIC_COMMUNICATOR* pCommunicator);
+void BSL_Reset(GENERIC_COMMUNICATOR* pCommunicator);
 
-void BSL_Invocation(HANDLE hCom);
-void BSL_Reset(HANDLE hCom);
+BOOL BSL_Mass_Erase(GENERIC_COMMUNICATOR* pCommunicator);
+BOOL BSL_Password(GENERIC_COMMUNICATOR* pCommunicator, const BYTE Password[32]);
+BOOL BSL_Version(GENERIC_COMMUNICATOR* pCommunicator, BYTE* pBSLVendor, BYTE* pCommandInterpreter, BYTE* pAPI, BYTE* pPeripheralInterface);
+BOOL BSL_Baudrate(GENERIC_COMMUNICATOR* pCommunicator, BSL_BAUDRATE Baudrate);
+BOOL BSL_Rx_Data_Block(GENERIC_COMMUNICATOR* pCommunicator, ULONG_PTR Addr, const BYTE* pbData, WORD cbData);
+BOOL BSL_Load_PC(GENERIC_COMMUNICATOR* pCommunicator, ULONG_PTR Addr);
+BOOL BSL_CRC_Check(GENERIC_COMMUNICATOR* pCommunicator, ULONG_PTR Addr, WORD Length, WORD* pCRC);
 
-BOOL BSL_Mass_Erase(HANDLE hCom);
-BOOL BSL_Password(HANDLE hCom, const BYTE Password[32]);
-BOOL BSL_Version(HANDLE hCom, BYTE* pBSLVendor, BYTE* pCommandInterpreter, BYTE* pAPI, BYTE* pPeripheralInterface);
-BOOL BSL_Baudrate(HANDLE hCom, BSL_BAUDRATE Baudrate);
-BOOL BSL_Rx_Data_Block(HANDLE hCom, ULONG_PTR Addr, const BYTE* pbData, WORD cbData);
-BOOL BSL_Load_PC(HANDLE hCom, ULONG_PTR Addr);
-BOOL BSL_CRC_Check(HANDLE hCom, ULONG_PTR Addr, WORD Length, WORD* pCRC);
-
-BOOL BSL_Rx_Data_Block_HELPER(HANDLE hCom, ULONG_PTR Addr, const BYTE* pbData, DWORD cbData);
+BOOL BSL_Rx_Data_Block_HELPER(GENERIC_COMMUNICATOR* pCommunicator, ULONG_PTR Addr, const BYTE* pbData, DWORD cbData);

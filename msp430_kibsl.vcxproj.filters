@@ -5,10 +5,27 @@
     <ClCompile Include="utils.c" />
     <ClCompile Include="elf.c" />
     <ClCompile Include="bsl.c" />
+    <ClCompile Include="com\serial.c">
+      <Filter>com</Filter>
+    </ClCompile>
+    <ClCompile Include="com\generic.c">
+      <Filter>com</Filter>
+    </ClCompile>
+    <ClCompile Include="com\ftdi.c">
+      <Filter>com</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="utils.h" />
     <ClInclude Include="bsl.h" />
     <ClInclude Include="elf.h" />
+    <ClInclude Include="com\generic.h">
+      <Filter>com</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="com">
+      <UniqueIdentifier>{a81d386d-886e-48a0-805d-9987449e45e6}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
 </Project>
