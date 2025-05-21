@@ -4,6 +4,8 @@
 #define CBUS_BIT(n, v)					((1 << (4 + n)) | (v << n))
 #define PRINT_FT_ERROR(func, status)	kprintf(L"ERROR " TEXT(__FUNCTION__) L" ; " func L" : %S (%lu)\n", FT_STATUS_to_NAME(status), status)
 PCSTR FT_STATUS_to_NAME(FT_STATUS status);
+PCSTR FT_X_SERIES_CBUS_to_NAME(UCHAR value);
+BOOL FT234XD_CBUS0_Config(PGENERIC_COMMUNICATOR Communicator);
 
 BOOL FTDI_Open(PGENERIC_COMMUNICATOR Communicator, int argc, wchar_t* argv[])
 {
@@ -24,7 +26,14 @@ BOOL FTDI_Open(PGENERIC_COMMUNICATOR Communicator, int argc, wchar_t* argv[])
 			status = FT_Open(0, &Communicator->hCom);
 			if (FT_SUCCESS(status))
 			{
-				ret = TRUE;
+				if (Communicator->Com == &COM_FT234XD)
+				{
+					ret = FT234XD_CBUS0_Config(Communicator);
+				}
+				else
+				{
+					ret = TRUE;
+				}
 			}
 			else PRINT_FT_ERROR(L"FT_Open", status);
 		}
@@ -198,6 +207,75 @@ BOOL FT234XD_IO_RESET(PGENERIC_COMMUNICATOR Communicator, BYTE bValue)
 	return ret;
 }
 
+BOOL FT234XD_CBUS0_Config(PGENERIC_COMMUNICATOR Communicator)
+{
+	BOOL ret = FALSE;
+	FT_STATUS status;
+	FT_EEPROM_X_SERIES ft_eeprom_x_series;
+	char Manufacturer[64] = { 0 }, ManufacturerId[64] = { 0 }, Description[64] = { 0 }, SerialNumber[64] = { 0 };
+
+	ft_eeprom_x_series.common.deviceType = FT_DEVICE_X_SERIES;
+	status = FT_EEPROM_Read(Communicator->hCom, &ft_eeprom_x_series, sizeof(ft_eeprom_x_series), Manufacturer, ManufacturerId, Description, SerialNumber);
+	if (FT_SUCCESS(status))
+	{
+		kprintf(L"| Manufacturer: %S (%S)\n| Description : %S\n| SerialNumber: %S\n\nCBUS0 config: 0x%02hhx (%S) - ", Manufacturer, ManufacturerId, Description, SerialNumber, ft_eeprom_x_series.Cbus0, FT_X_SERIES_CBUS_to_NAME(ft_eeprom_x_series.Cbus0));
+		if (ft_eeprom_x_series.Cbus0 == FT_X_SERIES_CBUS_IOMODE)
+		{
+			kprintf(L"OK\n");
+			ret = TRUE;
+		}
+		else
+		{
+			kprintf(L"KO -- will adjust config\n| EEPROM program  : ");
+			ft_eeprom_x_series.Cbus0 = FT_X_SERIES_CBUS_IOMODE;
+			status = FT_EEPROM_Program(Communicator->hCom, &ft_eeprom_x_series, sizeof(ft_eeprom_x_series), Manufacturer, ManufacturerId, Description, SerialNumber);
+			if (FT_SUCCESS(status))
+			{
+				kprintf(L"OK\n| Cycle port      : ");
+				status = FT_CyclePort(Communicator->hCom);
+				if (FT_SUCCESS(status))
+				{
+					kprintf(L"OK\n| Close old handle: ");
+					status = FT_Close(Communicator->hCom);
+					if (FT_SUCCESS(status))
+					{
+						kprintf(L"OK\n -- wait 5s ... --\n");
+						Sleep(5000);
+						kprintf(L"| Re-open device  : ");
+						status = FT_Open(0, &Communicator->hCom);
+						if (FT_SUCCESS(status))
+						{
+							kprintf(L"OK\n");
+							status = FT_EEPROM_Read(Communicator->hCom, &ft_eeprom_x_series, sizeof(ft_eeprom_x_series), Manufacturer, ManufacturerId, Description, SerialNumber);
+							if (FT_SUCCESS(status))
+							{
+								kprintf(L"\nCBUS0 config: 0x%02hhx (%S) - ", ft_eeprom_x_series.Cbus0, FT_X_SERIES_CBUS_to_NAME(ft_eeprom_x_series.Cbus0));
+								if (ft_eeprom_x_series.Cbus0 == FT_X_SERIES_CBUS_IOMODE)
+								{
+									kprintf(L"OK\n");
+									ret = TRUE;
+								}
+								else
+								{
+									kprintf(L"KO\n");
+								}
+							}
+							else PRINT_FT_ERROR(L"FT_EEPROM_Read", status);
+						}
+						else PRINT_FT_ERROR(L"FT_Open", status);
+					}
+					else PRINT_FT_ERROR(L"FT_Close", status);
+				}
+				else PRINT_FT_ERROR(L"FT_CyclePort", status);
+			}
+			else PRINT_FT_ERROR(L"FT_EEPROM_Program", status);
+		}
+	}
+	else PRINT_FT_ERROR(L"FT_EEPROM_Read", status);
+
+	return ret;
+}
+
 const GENERIC_COM COM_FTDI = {
 	.Name = L"ftdi",
 	.Open = FTDI_Open,
@@ -264,6 +342,54 @@ PCSTR FT_STATUS_to_NAME(FT_STATUS status)
 		if (FT_STATUS_MESSAGES[i].status == status)
 		{
 			ret = FT_STATUS_MESSAGES[i].name + 3;
+			break;
+		}
+	}
+
+	return ret;
+}
+
+typedef struct _DUAL_STRING_FT_X_SERIES_CBUS {
+	PCSTR name;
+	UCHAR value;
+} DUAL_STRING_FT_X_SERIES_CBUS, *PDUAL_STRING_FT_X_SERIES_CBUS;
+
+const PCSTR FT_CBUS_UNK = "FT_X_SERIES_CBUS_?";
+const DUAL_STRING_FT_X_SERIES_CBUS FT_X_SERIES_CBUS_MESSAGES[] = {
+	{"FT_X_SERIES_CBUS_TRISTATE",		FT_X_SERIES_CBUS_TRISTATE},
+	{"FT_X_SERIES_CBUS_TXLED",			FT_X_SERIES_CBUS_TXLED},
+	{"FT_X_SERIES_CBUS_RXLED",			FT_X_SERIES_CBUS_RXLED},
+	{"FT_X_SERIES_CBUS_TXRXLED",		FT_X_SERIES_CBUS_TXRXLED},
+	{"FT_X_SERIES_CBUS_PWREN",			FT_X_SERIES_CBUS_PWREN},
+	{"FT_X_SERIES_CBUS_SLEEP",			FT_X_SERIES_CBUS_SLEEP},
+	{"FT_X_SERIES_CBUS_DRIVE_0",		FT_X_SERIES_CBUS_DRIVE_0},
+	{"FT_X_SERIES_CBUS_DRIVE_1",		FT_X_SERIES_CBUS_DRIVE_1},
+	{"FT_X_SERIES_CBUS_IOMODE",			FT_X_SERIES_CBUS_IOMODE},
+	{"FT_X_SERIES_CBUS_TXDEN",			FT_X_SERIES_CBUS_TXDEN},
+	{"FT_X_SERIES_CBUS_CLK24",			FT_X_SERIES_CBUS_CLK24},
+	{"FT_X_SERIES_CBUS_CLK12",			FT_X_SERIES_CBUS_CLK12},
+	{"FT_X_SERIES_CBUS_CLK6",			FT_X_SERIES_CBUS_CLK6},
+	{"FT_X_SERIES_CBUS_BCD_CHARGER",	FT_X_SERIES_CBUS_BCD_CHARGER},
+	{"FT_X_SERIES_CBUS_BCD_CHARGER_N",	FT_X_SERIES_CBUS_BCD_CHARGER_N},
+	{"FT_X_SERIES_CBUS_I2C_TXE",		FT_X_SERIES_CBUS_I2C_TXE},
+	{"FT_X_SERIES_CBUS_I2C_RXF",		FT_X_SERIES_CBUS_I2C_RXF},
+	{"FT_X_SERIES_CBUS_VBUS_SENSE",		FT_X_SERIES_CBUS_VBUS_SENSE},
+	{"FT_X_SERIES_CBUS_BITBANG_WR",		FT_X_SERIES_CBUS_BITBANG_WR},
+	{"FT_X_SERIES_CBUS_BITBANG_RD",		FT_X_SERIES_CBUS_BITBANG_RD},
+	{"FT_X_SERIES_CBUS_TIMESTAMP",		FT_X_SERIES_CBUS_TIMESTAMP},
+	{"FT_X_SERIES_CBUS_KEEP_AWAKE",		FT_X_SERIES_CBUS_KEEP_AWAKE},
+};
+
+PCSTR FT_X_SERIES_CBUS_to_NAME(UCHAR value)
+{
+	DWORD i;
+	PCSTR ret = FT_CBUS_UNK;
+
+	for (i = 0; i < ARRAYSIZE(FT_X_SERIES_CBUS_MESSAGES); i++)
+	{
+		if (FT_X_SERIES_CBUS_MESSAGES[i].value == value)
+		{
+			ret = FT_X_SERIES_CBUS_MESSAGES[i].name + 17;
 			break;
 		}
 	}
