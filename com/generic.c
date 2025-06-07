@@ -4,6 +4,8 @@ const GENERIC_COM * Coms[] = {
 	&COM_SERIAL,
 	&COM_FTDI,
 	&COM_FT234XD,
+	&COM_KIWI_old,
+	&COM_KIWI,
 };
 
 BOOL Generic_Com_From_Args(PGENERIC_COMMUNICATOR Communicator, int argc, wchar_t* argv[])

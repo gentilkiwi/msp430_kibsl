@@ -19,14 +19,14 @@ int wmain(int argc, wchar_t* argv[])
 	GENERIC_COMMUNICATOR Communicator;
 
 	kprintf(
-		L" USB \xc4\xbf    \xda\xc4 MSP430              msp430_kibsl 0.1\n"
-		L" 3.3V \xc3----\xb4 VCC                  | MSP430FR2476 - st25tb_kiemul\n"
-		L" DTR# \xc3\xc4\xc4\xc4\xc4\xb4 RST#/NMI/SBWTDIO     | MSP430FR2673 - st25tb_kameleon\n"
-		L" RTS# \xc3\xc4\xc4\xc4\xc4\xb4 TEST/SBWTCK          \\ tested on USB Adapter: FT232H, FT232R, FT234XD\n"
-		L"   TX \xc3\xc4\xc4\xc4\xc4\xb4 RX                    \\ CH340K, CH343P, CP2102\n"
-		L"   RX \xc3\xc4\xc4\xc4\xc4\xb4 TX   /*** Benjamin DELPY `gentilkiwi` ( benjamin@gentilkiwi.com )\n"
-		L"  GND \xc3\xc4\xc4\xc4\xc4\xb4 GND       > https://blog.gentilkiwi.com\n"
-		L"   \xc4\xc4\xc4\xd9    \xc0\xc4\xc4\xc4    ***/\n\n"
+		L" USB \xc4\xbf    \xda\xc4 MSP430           msp430_kibsl 0.1\n"
+		L" 3.3V \xc3----\xb4 VCC               | MSP430FR2476 - st25tb_kiemul\n"
+		L" DTR# \xc3\xc4\xc4\xc4\xc4\xb4 RST#/NMI/SBWTDIO  | MSP430FR2673 - st25tb_kameleon\n"
+		L" RTS# \xc3\xc4\xc4\xc4\xc4\xb4 TEST/SBWTCK       | MSP430FR2676 - st25tb_kiwi\n"
+		L"   TX \xc3\xc4\xc4\xc4\xc4\xb4 RX                \\ tested on USB Adapter: FT232H, FT232R, FT234XD, FT230XQ\n"
+		L"   RX \xc3\xc4\xc4\xc4\xc4\xb4 TX                 \\ CH340K, CH343P, CP2102\n"
+		L"  GND \xc3\xc4\xc4\xc4\xc4\xb4 GND      /*** Benjamin DELPY `gentilkiwi` ( benjamin@gentilkiwi.com ) \n"
+		L"   \xc4\xc4\xc4\xd9    \xc0\xc4\xc4\xc4            > https://blog.gentilkiwi.com                      ***/\n\n"
 	);
 
 	if (GET_CLI_ARG(L"elf", &szElfFilename))
@@ -40,53 +40,58 @@ int wmain(int argc, wchar_t* argv[])
 				{
 					if (COM_OPEN(&Communicator, argc, argv))
 					{
-						if (COM_SETUP(&Communicator))
+						if (COM_CONFIG(&Communicator))
 						{
-							BSL_Invocation(&Communicator);
-							if (BSL_Baudrate(&Communicator, BSL_BAUDRATE_115200))
+							if (COM_SETUP(&Communicator))
 							{
-								if (BSL_Mass_Erase(&Communicator))
+								BSL_Invocation(&Communicator);
+								if (BSL_Baudrate(&Communicator, BSL_BAUDRATE_115200))
 								{
-									if (BSL_Password(&Communicator, NULL))
+									if (BSL_Mass_Erase(&Communicator))
 									{
-										for (i = 0; i < pELF32->e_phnum; i++)
+										if (BSL_Password(&Communicator, NULL))
 										{
-											kprintf(L"%3hu | ", i);
-
-											if ((pProgramHeader[i].p_type == PT_LOAD) && pProgramHeader[i].p_vaddr && pProgramHeader[i].p_filesz)
+											for (i = 0; i < pELF32->e_phnum; i++)
 											{
-												pbData = (PBYTE)pELF32 + pProgramHeader[i].p_offset;
-												cbData = pProgramHeader[i].p_filesz;
-												DataCRC = BSL_CalcCRC16(pbData, cbData);
+												kprintf(L"%3hu | ", i);
 
-												kprintf(L"0x%x - 0x%x (%6u) ", pProgramHeader[i].p_vaddr, pProgramHeader[i].p_vaddr + pProgramHeader[i].p_filesz - 1, pProgramHeader[i].p_filesz);
-												if (BSL_Rx_Data_Block_HELPER(&Communicator, pProgramHeader[i].p_vaddr, pbData, cbData))
+												if ((pProgramHeader[i].p_type == PT_LOAD) && pProgramHeader[i].p_vaddr && pProgramHeader[i].p_filesz)
 												{
-													kprintf(L"OK - CRC16 ");
-													if (BSL_CRC_Check(&Communicator, pProgramHeader[i].p_vaddr, (UINT16)cbData, &ChipCRC))
+													pbData = (PBYTE)pELF32 + pProgramHeader[i].p_offset;
+													cbData = pProgramHeader[i].p_filesz;
+													DataCRC = BSL_CalcCRC16(pbData, cbData);
+
+													kprintf(L"0x%x - 0x%x (%6u) ", pProgramHeader[i].p_vaddr, pProgramHeader[i].p_vaddr + pProgramHeader[i].p_filesz - 1, pProgramHeader[i].p_filesz);
+													if (BSL_Rx_Data_Block_HELPER(&Communicator, pProgramHeader[i].p_vaddr, pbData, cbData))
 													{
-														if (DataCRC == ChipCRC)
+														kprintf(L"OK - CRC16 ");
+														if (BSL_CRC_Check(&Communicator, pProgramHeader[i].p_vaddr, (UINT16)cbData, &ChipCRC))
 														{
-															kprintf(L"OK (%04hx)\n", DataCRC);
-														}
-														else
-														{
-															kprintf(L"!! KO !! Data %04hx / Chip %04hx\n", DataCRC, ChipCRC);
+															if (DataCRC == ChipCRC)
+															{
+																kprintf(L"OK (%04hx)\n", DataCRC);
+															}
+															else
+															{
+																kprintf(L"!! KO !! Data %04hx / Chip %04hx\n", DataCRC, ChipCRC);
+															}
 														}
 													}
 												}
+												else
+												{
+													kprintf(L"<ignored>\n");
+												}
 											}
-											else
-											{
-												kprintf(L"<ignored>\n");
-											}
+											
+											// Avoid PC method to do a real reset...
+											// kprintf(L"Set PC to entry point @ 0x%x ...: %s\n", pELF32->e_entry, BSL_Load_PC(&Communicator, pELF32->e_entry) ? L"OK" : L"KO");
+											BSL_Reset(&Communicator);
 										}
-										kprintf(L"Set PC to entry point @ 0x%x ...: %s\n", pELF32->e_entry, BSL_Load_PC(&Communicator, pELF32->e_entry) ? L"OK" : L"KO");
 									}
 								}
 							}
 						}
-
 						COM_CLOSE(&Communicator);
 					}
 				}

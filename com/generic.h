@@ -4,11 +4,13 @@
 typedef struct _GENERIC_COMMUNICATOR {
 	HANDLE hCom;
 	const struct _GENERIC_COM* Com;
+	DWORD Misc;
 } GENERIC_COMMUNICATOR, * PGENERIC_COMMUNICATOR;
 
 BOOL Generic_Com_From_Args(PGENERIC_COMMUNICATOR Communicator, int argc, wchar_t* argv[]);
 
 typedef BOOL(*PCOM_OPEN) (PGENERIC_COMMUNICATOR Communicator, int argc, wchar_t* argv[]);
+typedef BOOL(*PCOM_SPECIFIC_CONFIG) (PGENERIC_COMMUNICATOR Communicator);
 typedef BOOL(*PCOM_SETUP) (PGENERIC_COMMUNICATOR Communicator);
 typedef BOOL(*PCOM_SETBAUDRATE) (PGENERIC_COMMUNICATOR Communicator, DWORD Baudrate);
 typedef BOOL(*PCOM_IO_RESET) (PGENERIC_COMMUNICATOR Communicator, BYTE bValue);
@@ -20,6 +22,7 @@ typedef BOOL(*PCOM_CLOSE) (PGENERIC_COMMUNICATOR Communicator);
 typedef struct _GENERIC_COM {
 	LPCWSTR Name;
 	PCOM_OPEN Open;
+	PCOM_SPECIFIC_CONFIG Config;
 	PCOM_SETUP Setup;
 	PCOM_SETBAUDRATE SetBaudrate;
 	PCOM_IO_RESET IoReset;
@@ -30,6 +33,7 @@ typedef struct _GENERIC_COM {
 } GENERIC_COM, *PGENERIC_COM;
 
 #define COM_OPEN(This, argc, argv)			(This)->Com->Open(This, argc, argv)
+#define COM_CONFIG(This)					((This)->Com->Config ? (This)->Com->Config(This) : TRUE)
 #define COM_SETUP(This)						(This)->Com->Setup(This)
 #define COM_SETBAUDRATE(This, Baudrate)		(This)->Com->SetBaudrate(This, Baudrate)
 #define COM_IO_RESET(This, bValue)			(This)->Com->IoReset(This, bValue)
@@ -41,3 +45,5 @@ typedef struct _GENERIC_COM {
 extern const GENERIC_COM COM_SERIAL;
 extern const GENERIC_COM COM_FTDI;
 extern const GENERIC_COM COM_FT234XD;
+extern const GENERIC_COM COM_KIWI_old;
+extern const GENERIC_COM COM_KIWI;

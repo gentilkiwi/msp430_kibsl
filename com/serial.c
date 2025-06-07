@@ -171,6 +171,7 @@ BOOL Serial_Close(PGENERIC_COMMUNICATOR Communicator)
 const GENERIC_COM COM_SERIAL = {
 	.Name = L"serial",
 	.Open = Serial_Open,
+	.Config = NULL,
 	.Setup = Serial_Setup,
 	.SetBaudrate = Serial_SetBaudrate,
 	.IoReset = Serial_IO_RESET,
