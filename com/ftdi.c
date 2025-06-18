@@ -1,12 +1,9 @@
 #include "generic.h"
 #include "ftd2xx.h"
 
-#define CBUS_BIT(n, v)					((1 << (4 + (n))) | ((v) << (n)))
 #define PRINT_FT_ERROR(func, status)	kprintf(L"ERROR " TEXT(__FUNCTION__) L" ; " func L" : %S (%lu)\n", FT_STATUS_to_NAME(status), status)
 PCSTR FT_STATUS_to_NAME(FT_STATUS status);
 PCSTR FT_X_SERIES_CBUS_to_NAME(UCHAR value);
-BOOL FT234XD_CBUS0_Config(PGENERIC_COMMUNICATOR Communicator);
-BOOL KIWI_CBUS_Config(PGENERIC_COMMUNICATOR Communicator);
 
 BOOL FTDI_Open(PGENERIC_COMMUNICATOR Communicator, int argc, wchar_t* argv[])
 {
@@ -71,7 +68,6 @@ BOOL FTDI_Setup(PGENERIC_COMMUNICATOR Communicator)
 						status = FT_Purge(Communicator->hCom, FT_PURGE_RX | FT_PURGE_TX);
 						if (FT_SUCCESS(status))
 						{
-							Communicator->Misc = 0x00000000;
 							COM_IO_RESET(Communicator, 0);
 							COM_IO_TEST(Communicator, 0);
 
@@ -107,7 +103,7 @@ BOOL FTDI_SetBaudrate(PGENERIC_COMMUNICATOR Communicator, DWORD Baudrate)
 	return ret;
 }
 
-BOOL FTDI_IO_RESET(PGENERIC_COMMUNICATOR Communicator, BYTE bValue)
+BOOL FTDI_DTR_IO_RESET(PGENERIC_COMMUNICATOR Communicator, BYTE bValue)
 {
 	BOOL ret = FALSE;
 	FT_STATUS status;
@@ -122,7 +118,7 @@ BOOL FTDI_IO_RESET(PGENERIC_COMMUNICATOR Communicator, BYTE bValue)
 	return ret;
 }
 
-BOOL FTDI_IO_TEST(PGENERIC_COMMUNICATOR Communicator, BYTE bValue)
+BOOL FTDI_RTS_IO_TEST(PGENERIC_COMMUNICATOR Communicator, BYTE bValue)
 {
 	BOOL ret = FALSE;
 	FT_STATUS status;
@@ -191,93 +187,95 @@ BOOL FTDI_Close(PGENERIC_COMMUNICATOR Communicator)
 	return ret;
 }
 
-/*  Specific for FT234XD, no DTR# pin, but a CBUS0 (C0) available
- *  When configured as GPIO with FT_Prog, it can be used with Bitmode CBUS Bit Bang to generate RESET signal as DTR# does.
- */
-BOOL FT234XD_IO_RESET(PGENERIC_COMMUNICATOR Communicator, BYTE bValue)
+#define CBUS_BITN(n)					(1 << (4 + (n)))
+#define CBUS_BITV(n, v)					((v) << (n))
+#define CBUS_BIT(n, v)					(CBUS_BITN(n) | CBUS_BITV(n, v))
+
+BOOL FTDI_X_CBx(PGENERIC_COMMUNICATOR Communicator, BYTE x, BYTE bValue)
 {
 	BOOL ret = FALSE;
 	FT_STATUS status;
 
-	status = FT_SetBitMode(Communicator->hCom, CBUS_BIT(0, bValue), FT_BITMODE_CBUS_BITBANG);
-	if (FT_SUCCESS(status))
+	if (Communicator->Misc & CBUS_BITN(x))
 	{
-		ret = TRUE;
+		if (bValue)
+		{
+			Communicator->Misc |= CBUS_BITV(x, 1);
+		}
+		else
+		{
+			Communicator->Misc &= ~CBUS_BITV(x, 1);;
+		}
+
+		status = FT_SetBitMode(Communicator->hCom, Communicator->Misc & 0xff, FT_BITMODE_CBUS_BITBANG);
+		if (FT_SUCCESS(status))
+		{
+			ret = TRUE;
+		}
+		else PRINT_FT_ERROR(L"FT_SetBitMode", status);
 	}
-	else PRINT_FT_ERROR(L"FT_SetBitMode", status);
+	else PRINT_ERROR("CBUS %hhu was not configured in Misc\n", x);
 
 	return ret;
 }
 
-BOOL KIWI_IO_TEST(PGENERIC_COMMUNICATOR Communicator, BYTE bValue)
+BOOL FTDI_X_CB0(PGENERIC_COMMUNICATOR Communicator, BYTE bValue)
 {
-	return FTDI_IO_TEST(Communicator, !bValue);
+	return FTDI_X_CBx(Communicator, 0, bValue);
 }
 
-BOOL FT230XQ_KIWI_IO_Generic(PGENERIC_COMMUNICATOR Communicator)
+BOOL FTDI_X_CB1(PGENERIC_COMMUNICATOR Communicator, BYTE bValue)
 {
-	BOOL ret = FALSE;
-	FT_STATUS status;
-
-	status = FT_SetBitMode(Communicator->hCom, CBUS_BIT(0, Communicator->Misc & 0x00000001) | CBUS_BIT(3, (Communicator->Misc >> 1) & 0x00000001), FT_BITMODE_CBUS_BITBANG);
-	if (FT_SUCCESS(status))
-	{
-		ret = TRUE;
-	}
-	else PRINT_FT_ERROR(L"FT_SetBitMode", status);
-
-	return ret;
+	return FTDI_X_CBx(Communicator, 1, bValue);
 }
 
-BOOL FT230XQ_KIWI_IO_RESET(PGENERIC_COMMUNICATOR Communicator, BYTE bValue)
+BOOL FTDI_X_CB2(PGENERIC_COMMUNICATOR Communicator, BYTE bValue)
 {
-	if (bValue)
-	{
-		Communicator->Misc |= 0x00000001;
-	}
-	else
-	{
-		Communicator->Misc &= ~0x00000001;
-	}
-
-	return FT230XQ_KIWI_IO_Generic(Communicator);
+	return FTDI_X_CBx(Communicator, 2, bValue);
 }
 
-BOOL FT230XQ_KIWI_IO_TEST(PGENERIC_COMMUNICATOR Communicator, BYTE bValue)
+BOOL FTDI_X_CB3(PGENERIC_COMMUNICATOR Communicator, BYTE bValue)
 {
-	if (bValue)
-	{
-		Communicator->Misc |= 0x00000002;
-	}
-	else
-	{
-		Communicator->Misc &= ~0x00000002;
-	}
-
-	return FT230XQ_KIWI_IO_Generic(Communicator);
+	return FTDI_X_CBx(Communicator, 3, bValue);
 }
 
-BOOL FT234XD_CBUS0_Config(PGENERIC_COMMUNICATOR Communicator)
+BOOL FTDI_X_CBUS_Config(PGENERIC_COMMUNICATOR Communicator, const BYTE NeededField, const BYTE Configs[4])
 {
 	BOOL ret = FALSE;
 	FT_STATUS status;
 	FT_EEPROM_X_SERIES ft_eeprom_x_series;
 	char Manufacturer[64] = { 0 }, ManufacturerId[64] = { 0 }, Description[64] = { 0 }, SerialNumber[64] = { 0 };
-
+	BYTE i, *pValue;
+	
 	ft_eeprom_x_series.common.deviceType = FT_DEVICE_X_SERIES;
 	status = FT_EEPROM_Read(Communicator->hCom, &ft_eeprom_x_series, sizeof(ft_eeprom_x_series), Manufacturer, ManufacturerId, Description, SerialNumber);
 	if (FT_SUCCESS(status))
 	{
-		kprintf(L"| Manufacturer: %S (%S)\n| Description : %S\n| SerialNumber: %S\n\nCBUS0 config: 0x%02hhx (%S) - ", Manufacturer, ManufacturerId, Description, SerialNumber, ft_eeprom_x_series.Cbus0, FT_X_SERIES_CBUS_to_NAME(ft_eeprom_x_series.Cbus0));
-		if (ft_eeprom_x_series.Cbus0 == FT_X_SERIES_CBUS_IOMODE)
+		kprintf(L"| Manufacturer: %S (%S)\n| Description : %S\n| SerialNumber: %S\n\n| CBUS configuration :\n", Manufacturer, ManufacturerId, Description, SerialNumber);
+
+		ret = TRUE;
+		for (i = 0; i < 4; i++)
 		{
-			kprintf(L"OK\n");
-			ret = TRUE;
+			if(CBUS_BITN(i) & NeededField)
+			{
+				pValue = &ft_eeprom_x_series.Cbus0 + i;
+				kprintf(L"  CBUS%hhu: 0x%02hhx (%S) - ", i, *pValue, FT_X_SERIES_CBUS_to_NAME(*pValue));
+				if (*pValue == Configs[i])
+				{
+					kprintf(L"OK\n");
+				}
+				else
+				{
+					kprintf(L"KO, needed: 0x%02hhx (%S) -- will try to adjust it\n", Configs[i], FT_X_SERIES_CBUS_to_NAME(Configs[i]));
+					*pValue = Configs[i];
+					ret = FALSE;
+				}
+			}
 		}
-		else
+
+		if (!ret)
 		{
-			kprintf(L"KO -- will adjust config\n| EEPROM program  : ");
-			ft_eeprom_x_series.Cbus0 = FT_X_SERIES_CBUS_IOMODE;
+			kprintf(L"| EEPROM program  : ");
 			status = FT_EEPROM_Program(Communicator->hCom, &ft_eeprom_x_series, sizeof(ft_eeprom_x_series), Manufacturer, ManufacturerId, Description, SerialNumber);
 			if (FT_SUCCESS(status))
 			{
@@ -299,15 +297,24 @@ BOOL FT234XD_CBUS0_Config(PGENERIC_COMMUNICATOR Communicator)
 							status = FT_EEPROM_Read(Communicator->hCom, &ft_eeprom_x_series, sizeof(ft_eeprom_x_series), Manufacturer, ManufacturerId, Description, SerialNumber);
 							if (FT_SUCCESS(status))
 							{
-								kprintf(L"\nCBUS0 config: 0x%02hhx (%S) - ", ft_eeprom_x_series.Cbus0, FT_X_SERIES_CBUS_to_NAME(ft_eeprom_x_series.Cbus0));
-								if (ft_eeprom_x_series.Cbus0 == FT_X_SERIES_CBUS_IOMODE)
+								kprintf(L" | CBUS configuration :\n");
+								ret = TRUE;
+								for (i = 0; i < 4; i++)
 								{
-									kprintf(L"OK\n");
-									ret = TRUE;
-								}
-								else
-								{
-									kprintf(L"KO\n");
+									if (CBUS_BITN(i) & NeededField)
+									{
+										pValue = &ft_eeprom_x_series.Cbus0 + i;
+										kprintf(L"  CBUS%hhu: 0x%02hhx (%S) - ", i, *pValue, FT_X_SERIES_CBUS_to_NAME(*pValue));
+										if (*pValue == Configs[i])
+										{
+											kprintf(L"OK\n");
+										}
+										else
+										{
+											kprintf(L"KO\n");
+											ret = FALSE;
+										}
+									}
 								}
 							}
 							else PRINT_FT_ERROR(L"FT_EEPROM_Read", status);
@@ -322,6 +329,18 @@ BOOL FT234XD_CBUS0_Config(PGENERIC_COMMUNICATOR Communicator)
 		}
 	}
 	else PRINT_FT_ERROR(L"FT_EEPROM_Read", status);
+
+	if (ret)
+	{
+		Communicator->Misc = 0;
+		for (i = 0; i < 4; i++)
+		{
+			if ((CBUS_BITN(i) & NeededField) && (Configs[i] == FT_X_SERIES_CBUS_IOMODE))
+			{
+				Communicator->Misc |= CBUS_BIT(i, 0);
+			}
+		}
+	}
 
 	return ret;
 }
@@ -332,12 +351,18 @@ const GENERIC_COM COM_FTDI = {
 	.Config = NULL,
 	.Setup = FTDI_Setup,
 	.SetBaudrate = FTDI_SetBaudrate,
-	.IoReset = FTDI_IO_RESET,
-	.IoTest = FTDI_IO_TEST,
+	.IoReset = FTDI_DTR_IO_RESET,
+	.IoTest = FTDI_RTS_IO_TEST,
 	.Send = FTDI_Send,
 	.Recv = FTDI_Recv,
 	.Close = FTDI_Close,
 };
+
+const BYTE FT234XD_Configs[4] = { FT_X_SERIES_CBUS_IOMODE };
+BOOL FT234XD_CBUS0_Config(PGENERIC_COMMUNICATOR Communicator)
+{
+	return FTDI_X_CBUS_Config(Communicator, CBUS_BITN(0), FT234XD_Configs);
+}
 
 const GENERIC_COM COM_FT234XD = {
 	.Name = L"ft234xd",
@@ -345,120 +370,46 @@ const GENERIC_COM COM_FT234XD = {
 	.Config = FT234XD_CBUS0_Config,
 	.Setup = FTDI_Setup,
 	.SetBaudrate = FTDI_SetBaudrate,
-	.IoReset = FT234XD_IO_RESET,
-	.IoTest = FTDI_IO_TEST,
+	.IoReset = FTDI_X_CB0,
+	.IoTest = FTDI_RTS_IO_TEST,
 	.Send = FTDI_Send,
 	.Recv = FTDI_Recv,
 	.Close = FTDI_Close,
 };
 
-const GENERIC_COM COM_KIWI_old = {
-	.Name = L"kiwi_old",
+const BYTE ST25TB_KIWI_FT230XD_Configs[4] = { FT_X_SERIES_CBUS_IOMODE, FT_X_SERIES_CBUS_TXLED, FT_X_SERIES_CBUS_RXLED, FT_X_SERIES_CBUS_IOMODE };
+BOOL ST25TB_KIWI_FT230XD_CBUS_Config(PGENERIC_COMMUNICATOR Communicator)
+{
+	return FTDI_X_CBUS_Config(Communicator, CBUS_BITN(0) | CBUS_BITN(1) | CBUS_BITN(2) | CBUS_BITN(3), ST25TB_KIWI_FT230XD_Configs);
+}
+
+const GENERIC_COM COM_ST25TB_KIWI = {
+	.Name = L"st25tb_kiwi",
 	.Open = FTDI_Open,
-	.Config = FT234XD_CBUS0_Config,
+	.Config = ST25TB_KIWI_FT230XD_CBUS_Config,
 	.Setup = FTDI_Setup,
 	.SetBaudrate = FTDI_SetBaudrate,
-	.IoReset = FT234XD_IO_RESET,
-	.IoTest = KIWI_IO_TEST,
+	.IoReset = FTDI_X_CB0,
+	.IoTest = FTDI_X_CB3,
 	.Send = FTDI_Send,
 	.Recv = FTDI_Recv,
 	.Close = FTDI_Close,
 };
 
-void FTDI_CBUS_PrintConfig(PFT_EEPROM_X_SERIES pEeprom, BYTE cb)
+const BYTE UMFT230XB_Configs[4] = { FT_X_SERIES_CBUS_IOMODE , FT_X_SERIES_CBUS_IOMODE };
+BOOL UMFT230XB_CBUS_Config(PGENERIC_COMMUNICATOR Communicator)
 {
-	BYTE i, v;
-	for (i = 0; i < cb; i++)
-	{
-		v = *(&pEeprom->Cbus0 + i);
-		kprintf(L"  CBUS%hhu config: 0x%02hhx (%S)\n", i, v, FT_X_SERIES_CBUS_to_NAME(v));
-	}
+	return FTDI_X_CBUS_Config(Communicator, CBUS_BITN(0) | CBUS_BITN(1), UMFT230XB_Configs);
 }
 
-BOOL KIWI_CBUS_Config(PGENERIC_COMMUNICATOR Communicator)
-{
-	BOOL ret = FALSE;
-	FT_STATUS status;
-	FT_EEPROM_X_SERIES ft_eeprom_x_series;
-	char Manufacturer[64] = { 0 }, ManufacturerId[64] = { 0 }, Description[64] = { 0 }, SerialNumber[64] = { 0 };
-
-	ft_eeprom_x_series.common.deviceType = FT_DEVICE_X_SERIES;
-	status = FT_EEPROM_Read(Communicator->hCom, &ft_eeprom_x_series, sizeof(ft_eeprom_x_series), Manufacturer, ManufacturerId, Description, SerialNumber);
-	if (FT_SUCCESS(status))
-	{
-		kprintf(L"| Manufacturer: %S (%S)\n| Description : %S\n| SerialNumber: %S\n\n| CBUS configuration :\n", Manufacturer, ManufacturerId, Description, SerialNumber);
-		FTDI_CBUS_PrintConfig(&ft_eeprom_x_series, 4);
-		kprintf(L"> CBUS is: ");
-		if ((ft_eeprom_x_series.Cbus0 == FT_X_SERIES_CBUS_IOMODE) && (ft_eeprom_x_series.Cbus1 == FT_X_SERIES_CBUS_TXLED) && (ft_eeprom_x_series.Cbus2 == FT_X_SERIES_CBUS_RXLED) && (ft_eeprom_x_series.Cbus3 == FT_X_SERIES_CBUS_IOMODE))
-		{
-			kprintf(L"OK\n");
-			ret = TRUE;
-		}
-		else
-		{
-			kprintf(L"KO -- will adjust config\n| EEPROM program  : ");
-			ft_eeprom_x_series.Cbus0 = FT_X_SERIES_CBUS_IOMODE;
-			ft_eeprom_x_series.Cbus1 = FT_X_SERIES_CBUS_TXLED;
-			ft_eeprom_x_series.Cbus2 = FT_X_SERIES_CBUS_RXLED;
-			ft_eeprom_x_series.Cbus3 = FT_X_SERIES_CBUS_IOMODE;
-
-			status = FT_EEPROM_Program(Communicator->hCom, &ft_eeprom_x_series, sizeof(ft_eeprom_x_series), Manufacturer, ManufacturerId, Description, SerialNumber);
-			if (FT_SUCCESS(status))
-			{
-				kprintf(L"OK\n| Cycle port      : ");
-				status = FT_CyclePort(Communicator->hCom);
-				if (FT_SUCCESS(status))
-				{
-					kprintf(L"OK\n| Close old handle: ");
-					status = FT_Close(Communicator->hCom);
-					if (FT_SUCCESS(status))
-					{
-						kprintf(L"OK\n -- wait 5s ... --\n");
-						Sleep(5000);
-						kprintf(L"| Re-open device  : ");
-						status = FT_Open(0, &Communicator->hCom);
-						if (FT_SUCCESS(status))
-						{
-							kprintf(L"OK\n");
-							status = FT_EEPROM_Read(Communicator->hCom, &ft_eeprom_x_series, sizeof(ft_eeprom_x_series), Manufacturer, ManufacturerId, Description, SerialNumber);
-							if (FT_SUCCESS(status))
-							{
-								FTDI_CBUS_PrintConfig(&ft_eeprom_x_series, 4);
-								kprintf(L"| CBUS configuration : ");
-								if ((ft_eeprom_x_series.Cbus0 == FT_X_SERIES_CBUS_IOMODE) && (ft_eeprom_x_series.Cbus1 == FT_X_SERIES_CBUS_TXLED) && (ft_eeprom_x_series.Cbus2 == FT_X_SERIES_CBUS_RXLED) && (ft_eeprom_x_series.Cbus3 == FT_X_SERIES_CBUS_IOMODE))
-								{
-									kprintf(L"OK\n");
-									ret = TRUE;
-								}
-								else
-								{
-									kprintf(L"KO\n");
-								}
-							}
-							else PRINT_FT_ERROR(L"FT_EEPROM_Read", status);
-						}
-						else PRINT_FT_ERROR(L"FT_Open", status);
-					}
-					else PRINT_FT_ERROR(L"FT_Close", status);
-				}
-				else PRINT_FT_ERROR(L"FT_CyclePort", status);
-			}
-			else PRINT_FT_ERROR(L"FT_EEPROM_Program", status);
-		}
-	}
-	else PRINT_FT_ERROR(L"FT_EEPROM_Read", status);
-
-	return ret;
-}
-
-const GENERIC_COM COM_KIWI = {
-	.Name = L"kiwi",
+const GENERIC_COM COM_UMFT230XB = {
+	.Name = L"umft230xb",
 	.Open = FTDI_Open,
-	.Config = KIWI_CBUS_Config,
+	.Config = UMFT230XB_CBUS_Config,
 	.Setup = FTDI_Setup,
 	.SetBaudrate = FTDI_SetBaudrate,
-	.IoReset = FT230XQ_KIWI_IO_RESET,
-	.IoTest = FT230XQ_KIWI_IO_TEST,
+	.IoReset = FTDI_X_CB0,
+	.IoTest = FTDI_X_CB3,
 	.Send = FTDI_Send,
 	.Recv = FTDI_Recv,
 	.Close = FTDI_Close,

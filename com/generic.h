@@ -45,5 +45,5 @@ typedef struct _GENERIC_COM {
 extern const GENERIC_COM COM_SERIAL;
 extern const GENERIC_COM COM_FTDI;
 extern const GENERIC_COM COM_FT234XD;
-extern const GENERIC_COM COM_KIWI_old;
-extern const GENERIC_COM COM_KIWI;
+extern const GENERIC_COM COM_ST25TB_KIWI;
+extern const GENERIC_COM COM_UMFT230XB;
