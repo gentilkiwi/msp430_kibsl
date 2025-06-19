@@ -28,7 +28,15 @@ BOOL FTDI_Open(PGENERIC_COMMUNICATOR Communicator, int argc, wchar_t* argv[])
 				status = FT_GetComPortNumber(Communicator->hCom, &ComPortNumber);
 				if (FT_SUCCESS(status))
 				{
-					kprintf(L"| Port available @ COM%i\n", ComPortNumber);
+					kprintf(L"| Port available @ ");
+					if (ComPortNumber > 0)
+					{
+						kprintf(L"COM%i\n", ComPortNumber);
+					}
+					else
+					{
+						kprintf(L"D2XX Direct\n");
+					}
 				}
 
 				ret = TRUE;
@@ -297,7 +305,7 @@ BOOL FTDI_X_CBUS_Config(PGENERIC_COMMUNICATOR Communicator, const BYTE NeededFie
 							status = FT_EEPROM_Read(Communicator->hCom, &ft_eeprom_x_series, sizeof(ft_eeprom_x_series), Manufacturer, ManufacturerId, Description, SerialNumber);
 							if (FT_SUCCESS(status))
 							{
-								kprintf(L" | CBUS configuration :\n");
+								kprintf(L"| CBUS configuration :\n");
 								ret = TRUE;
 								for (i = 0; i < 4; i++)
 								{
@@ -409,7 +417,7 @@ const GENERIC_COM COM_UMFT230XB = {
 	.Setup = FTDI_Setup,
 	.SetBaudrate = FTDI_SetBaudrate,
 	.IoReset = FTDI_X_CB0,
-	.IoTest = FTDI_X_CB3,
+	.IoTest = FTDI_X_CB1,
 	.Send = FTDI_Send,
 	.Recv = FTDI_Recv,
 	.Close = FTDI_Close,
