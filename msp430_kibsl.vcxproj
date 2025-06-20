@@ -265,6 +265,14 @@
     <ClInclude Include="elf.h" />
     <ClInclude Include="utils.h" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="pics\msp430_bsl_invocation.png" />
+    <Image Include="pics\UMFT230XB-01.png" />
+    <Image Include="pics\UMFT234XD-01.png" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

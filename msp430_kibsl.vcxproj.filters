@@ -27,5 +27,22 @@
     <Filter Include="com">
       <UniqueIdentifier>{a81d386d-886e-48a0-805d-9987449e45e6}</UniqueIdentifier>
     </Filter>
+    <Filter Include="pics">
+      <UniqueIdentifier>{6ccbdad0-d6c3-4d64-ad55-82605fb15b42}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="pics\msp430_bsl_invocation.png">
+      <Filter>pics</Filter>
+    </Image>
+    <Image Include="pics\UMFT230XB-01.png">
+      <Filter>pics</Filter>
+    </Image>
+    <Image Include="pics\UMFT234XD-01.png">
+      <Filter>pics</Filter>
+    </Image>
   </ItemGroup>
 </Project>
